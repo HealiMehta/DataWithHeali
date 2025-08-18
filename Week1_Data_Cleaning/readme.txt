@@ -1,0 +1,1 @@
+\Users\admin\AppData\Roaming\Python\Python312\Scripts\streamlit.exe run "C:\Users\admin\Desktop\Data_Cleaning\app.py"
