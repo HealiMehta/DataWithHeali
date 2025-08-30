@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Data Explorer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: white;
+            color: #1a202c;
+        }
+        
+        @keyframes bubble-pop {
+            0% { 
+                transform: scale(1); 
+                opacity: 1; 
+            }
+            25% { 
+                transform: scale(1.2); 
+                opacity: 0.9; 
+            }
+            100% { 
+                transform: scale(0); 
+                opacity: 0; 
+            }
+        }
+        
+        @keyframes ripple {
+            0% {
+                width: 0;
+                height: 0;
+                opacity: 0.8;
+                border-width: 2px;
+            }
+            100% {
+                width: 300px;
+                height: 300px;
+                opacity: 0;
+                border-width: 1px;
+            }
+        }
+        
+        .bubble {
+            position: relative;
+            padding: 20px 25px;
+            border-radius: 50%;
+            background: transparent;
+            border: 2px solid rgba(29, 185, 84, 0.6);
+            color: #1db954;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(29, 185, 84, 0.15);
+            transition: all 0.3s ease;
+            opacity: 1;
+            transform: scale(1);
+            overflow: visible;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+        
+        .bubble:hover {
+            transform: scale(1.05) translateY(-5px) !important;
+            box-shadow: 0 15px 40px rgba(29, 185, 84, 0.2) !important;
+        }
+
+        .bubble.popping {
+            animation: bubble-pop 0.8s ease forwards;
+        }
+
+        .bubble.popping::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border: 2px solid #1db954;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: ripple 0.8s ease-out forwards;
+            pointer-events: none;
+        }
+
+        .upload-area {
+            border: 2px dashed #1db954;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            background-color: rgba(29, 185, 84, 0.05);
+            border-color: #1ed760;
+        }
+
+        .upload-area.dragover {
+            background-color: rgba(29, 185, 84, 0.1);
+            border-color: #1ed760;
+        }
+
+        .chart-container {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 20px;
+            padding: 30px;
+            margin: 20px 0;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #1db954;
+        }
+
+        .bubbles-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 32px;
+            margin-bottom: 48px;
+            min-height: 200px;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .title {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 0 0 16px 0;
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 20px;
+            color: #718096;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .reset-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            color: #1a202c;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .reset-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .completion {
+            text-align: center;
+            margin-top: 48px;
+            padding: 32px;
+            background: rgba(29, 185, 84, 0.1);
+            border-radius: 16px;
+            border: 1px solid rgba(29, 185, 84, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <h1 class="title">🎶 Spotify Data Explorer</h1>
+            <p class="subtitle">Upload your Spotify dataset and explore insights through floating bubbles</p>
+        </div>
+
+        <div id="upload-section">
+            <div style="max-width: 500px; margin: 0 auto;">
+                <div class="upload-area" id="uploadArea">
+                    <div style="margin-bottom: 24px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">📁</div>
+                        <h2 style="font-size: 24px; font-weight: 600; margin-bottom: 8px;">Upload Your Dataset</h2>
+                        <p style="color: #718096;">Choose a CSV file or drag and drop it here</p>
+                    </div>
+                    <input type="file" accept=".csv" id="fileInput" style="display: none;">
+                </div>
+            </div>
+        </div>
+
+        <div id="main-content" style="display: none;">
+            <div class="stats">
+                <div id="stats-text" style="font-size: 18px; color: #718096;"></div>
+                <button class="reset-btn" onclick="resetApp()">🔄 Reset Explorer</button>
+            </div>
+
+            <div class="bubbles-container" id="bubblesContainer"></div>
+
+            <div id="chartsContainer"></div>
+
+            <div id="completion" class="completion" style="display: none;">
+                <h2 style="font-size: 36px; font-weight: bold; margin-bottom: 16px;">🎉 Exploration Complete!</h2>
+                <p style="font-size: 20px; color: #718096;">You've discovered all the insights in your Spotify data!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let data = null;
+        let shownCharts = [];
+        let poppedBubbles = [];
+
+        const questions = [
+            { id: 'energy_valence', text: 'Do energetic songs also feel happier?', delay: 200 },
+            { id: 'duration_time', text: 'Has song duration changed over time?', delay: 400 },
+            { id: 'tempo_distribution', text: 'How is tempo distributed?', delay: 600 },
+            { id: 'energy_distribution', text: 'How is energy distributed?', delay: 800 },
+            { id: 'valence_distribution', text: 'How is happiness distributed?', delay: 1000 },
+            { id: 'decade_trends', text: 'How have music features evolved?', delay: 1200 }
+        ];
+
+        // File handling
+        document.getElementById('uploadArea').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        // Drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (file.name.endsWith('.csv')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    data = parseCSV(e.target.result);
+                    if (data && data.length > 0) {
+                        showMainContent();
+                    } else {
+                        alert('No valid data found in the CSV file.');
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Please upload a CSV file.');
+            }
+        }
+
+        function parseCSV(csvText) {
+            try {
+                const lines = csvText.split('\n').filter(line => line.trim());
+                if (lines.length < 2) return [];
+                
+                const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                const parsedData = [];
+                
+                for (let i = 1; i < Math.min(lines.length, 1000); i++) {
+                    const values = lines[i].split(',');
+                    const row = {};
+                    
+                    for (let j = 0; j < headers.length; j++) {
+                        const value = values[j]?.trim().replace(/"/g, '') || '';
+                        const numValue = parseFloat(value);
+                        row[headers[j]] = isNaN(numValue) ? value : numValue;
+                    }
+                    
+                    if (typeof row.energy === 'number' && typeof row.valence === 'number') {
+                        row.duration_min = typeof row.duration_ms === 'number' ? row.duration_ms / 60000 : null;
+                        row.decade = typeof row.year === 'number' && row.year >= 1950 ? Math.floor(row.year / 10) * 10 : null;
+                        parsedData.push(row);
+                    }
+                }
+
+                return parsedData;
+            } catch (error) {
+                console.error('Error parsing CSV:', error);
+                return [];
+            }
+        }
+
+        function showMainContent() {
+            document.getElementById('upload-section').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            document.getElementById('stats-text').textContent = `📊 Dataset loaded: ${data.length} songs`;
+            renderBubbles();
+        }
+
+        function renderBubbles() {
+            const container = document.getElementById('bubblesContainer');
+            container.innerHTML = '';
+            
+            questions.forEach((question, index) => {
+                if (!poppedBubbles.includes(question.id)) {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    bubble.setAttribute('data-bubble-id', question.id);
+                    bubble.textContent = question.text;
+                    bubble.style.animationDelay = `${question.delay}ms`;
+                    bubble.addEventListener('click', () => handleBubblePop(question.id));
+                    container.appendChild(bubble);
+                }
+            });
+        }
+
+        function handleBubblePop(questionId) {
+            if (poppedBubbles.includes(questionId)) return;
+            
+            const bubbleElement = document.querySelector(`[data-bubble-id="${questionId}"]`);
+            if (bubbleElement) {
+                bubbleElement.classList.add('popping');
+                
+                setTimeout(() => {
+                    bubbleElement.remove();
+                }, 800);
+            }
+            
+            poppedBubbles.push(questionId);
+            
+            setTimeout(() => {
+                shownCharts.push(questionId);
+                renderChart(questionId);
+                
+                if (shownCharts.length === questions.length) {
+                    document.getElementById('completion').style.display = 'block';
+                }
+            }, 800);
+        }
+
+        function renderChart(chartId) {
+            const chartData = getChartData(chartId);
+            if (!chartData || chartData.length === 0) return;
+
+            const container = document.getElementById('chartsContainer');
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'chart-container';
+            chartDiv.id = `chart-container-${chartId}`;
+            chartDiv.innerHTML = `
+                <h3 class="chart-title">${questions.find(q => q.id === chartId).text}</h3>
+                <canvas id="chart-${chartId}" width="800" height="400"></canvas>
+            `;
+            container.appendChild(chartDiv);
+
+            // Scroll to the newly added chart after a brief delay
+            setTimeout(() => {
+                chartDiv.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center',
+                    inline: 'nearest'
+                });
+            }, 100);
+
+            const canvas = document.getElementById(`chart-${chartId}`);
+            const ctx = canvas.getContext('2d');
+
+            let chartConfig = {};
+
+            switch (chartId) {
+                case 'energy_valence':
+                    chartConfig = {
+                        type: 'scatter',
+                        data: {
+                            datasets: [{
+                                label: 'Songs',
+                                data: chartData.map(d => ({ x: d.energy, y: d.valence })),
+                                backgroundColor: 'rgba(29, 185, 84, 0.4)',
+                                borderColor: '#1db954',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                x: { title: { display: true, text: 'Energy' }, min: 0, max: 1 },
+                                y: { title: { display: true, text: 'Valence (Happiness)' }, min: 0, max: 1 }
+                            }
+                        }
+                    };
+                    break;
+
+                case 'duration_time':
+                    chartConfig = {
+                        type: 'line',
+                        data: {
+                            labels: chartData.map(d => d.year),
+                            datasets: [{
+                                label: 'Average Duration (minutes)',
+                                data: chartData.map(d => d.avgDuration),
+                                borderColor: '#1db954',
+                                backgroundColor: 'rgba(29, 185, 84, 0.1)',
+                                borderWidth: 3,
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                x: { title: { display: true, text: 'Year' } },
+                                y: { title: { display: true, text: 'Duration (minutes)' } }
+                            }
+                        }
+                    };
+                    break;
+
+                default:
+                    chartConfig = {
+                        type: 'line',
+                        data: {
+                            labels: chartData.map(d => d.midpoint || d.decade),
+                            datasets: [{
+                                label: 'Count',
+                                data: chartData.map(d => d.count || d.energy),
+                                borderColor: '#1db954',
+                                backgroundColor: 'rgba(29, 185, 84, 0.1)',
+                                borderWidth: 2,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            scales: {
+                                x: { title: { display: true, text: getXAxisLabel(chartId) } },
+                                y: { title: { display: true, text: 'Count' } }
+                            }
+                        }
+                    };
+
+                    if (chartId === 'decade_trends') {
+                        chartConfig.data.datasets.push({
+                            label: 'Valence',
+                            data: chartData.map(d => d.valence),
+                            borderColor: '#1ed760',
+                            backgroundColor: 'rgba(30, 215, 96, 0.1)',
+                            borderWidth: 2,
+                            fill: false
+                        });
+                        chartConfig.data.datasets[0].label = 'Energy';
+                    }
+                    break;
+            }
+
+            new Chart(ctx, chartConfig);
+        }
+
+        function getXAxisLabel(chartId) {
+            switch (chartId) {
+                case 'tempo_distribution': return 'Tempo (BPM)';
+                case 'energy_distribution': return 'Energy';
+                case 'valence_distribution': return 'Valence (Happiness)';
+                case 'decade_trends': return 'Decade';
+                default: return 'Value';
+            }
+        }
+
+        function getChartData(chartId) {
+            if (!data || data.length === 0) return [];
+
+            switch (chartId) {
+                case 'energy_valence':
+                    return data.slice(0, 300).map(d => ({ energy: d.energy, valence: d.valence }));
+                
+                case 'duration_time':
+                    const yearData = {};
+                    data.forEach(d => {
+                        if (d.year && d.duration_min && d.year >= 1980 && d.year <= 2023) {
+                            if (!yearData[d.year]) yearData[d.year] = [];
+                            yearData[d.year].push(d.duration_min);
+                        }
+                    });
+                    
+                    return Object.keys(yearData)
+                        .map(year => ({
+                            year: parseInt(year),
+                            avgDuration: yearData[year].reduce((a, b) => a + b, 0) / yearData[year].length
+                        }))
+                        .sort((a, b) => a.year - b.year);
+
+                case 'tempo_distribution':
+                    const tempoValues = data.map(d => d.tempo).filter(v => typeof v === 'number' && v > 0 && v < 300);
+                    return createHistogram(tempoValues);
+
+                case 'energy_distribution':
+                    const energyValues = data.map(d => d.energy).filter(v => typeof v === 'number');
+                    return createHistogram(energyValues);
+
+                case 'valence_distribution':
+                    const valenceValues = data.map(d => d.valence).filter(v => typeof v === 'number');
+                    return createHistogram(valenceValues);
+
+                case 'decade_trends':
+                    const decadeData = {};
+                    data.forEach(d => {
+                        if (d.decade && d.decade >= 1980) {
+                            if (!decadeData[d.decade]) decadeData[d.decade] = { energy: [], valence: [] };
+                            if (typeof d.energy === 'number') decadeData[d.decade].energy.push(d.energy);
+                            if (typeof d.valence === 'number') decadeData[d.decade].valence.push(d.valence);
+                        }
+                    });
+                    
+                    return Object.keys(decadeData)
+                        .map(decade => ({
+                            decade: parseInt(decade),
+                            energy: decadeData[decade].energy.length ? 
+                                decadeData[decade].energy.reduce((a, b) => a + b, 0) / decadeData[decade].energy.length : 0,
+                            valence: decadeData[decade].valence.length ? 
+                                decadeData[decade].valence.reduce((a, b) => a + b, 0) / decadeData[decade].valence.length : 0
+                        }))
+                        .sort((a, b) => a.decade - b.decade);
+
+                default:
+                    return [];
+            }
+        }
+
+        function createHistogram(values) {
+            if (values.length === 0) return [];
+            
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const binCount = 15;
+            const binWidth = (max - min) / binCount;
+            const bins = [];
+            
+            for (let i = 0; i < binCount; i++) {
+                const binStart = min + (i * binWidth);
+                const binEnd = min + ((i + 1) * binWidth);
+                const count = values.filter(v => v >= binStart && v < binEnd).length;
+                bins.push({ 
+                    midpoint: Math.round((binStart + binEnd) / 2 * 100) / 100, 
+                    count 
+                });
+            }
+            
+            return bins;
+        }
+
+        function resetApp() {
+            data = null;
+            shownCharts = [];
+            poppedBubbles = [];
+            document.getElementById('upload-section').style.display = 'block';
+            document.getElementById('main-content').style.display = 'none';
+            document.getElementById('chartsContainer').innerHTML = '';
+            document.getElementById('completion').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+        }
+    </script>
+</body>
+</html>
